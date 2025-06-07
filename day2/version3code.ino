@@ -1,4 +1,5 @@
-#include <WiFi.h>           // You can remove this if not used anywhere else
+#include <WiFi.h>
+#include <HTTPClient.h>
 #include "DHT.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -17,6 +18,12 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// Wi-Fi & ThingSpeak
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+String apiKey = "ISJVA6GVF0HDH2O5";
+const char* server = "http://api.thingspeak.com/update";
+
 DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
@@ -33,9 +40,16 @@ void setup() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
 
+  // Wi-Fi
+  WiFi.begin(ssid, password);
   dht.begin();
 
-  Serial.println("Setup done");
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWi-Fi Connected!");
 }
 
 void loop() {
@@ -80,5 +94,26 @@ void loop() {
   Serial.print(" | CO2: "); Serial.print(co2ppm);
   Serial.print(" ppm ("); Serial.print(co2Condition); Serial.println(")");
 
-  delay(20000); // 20s delay
+  // ThingSpeak Upload
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String url = server;
+    url += "?api_key=" + apiKey;
+    url += "&field1=" + String(temperature);
+    url += "&field2=" + String(humidity);
+    url += "&field3=" + String(soilADC);
+    url += "&field4=" + String(co2ppm);
+
+    http.begin(url);
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      Serial.println("Data sent to ThingSpeak!");
+    } else {
+      Serial.print("HTTP Error: ");
+      Serial.println(httpCode);
+    }
+    http.end();
+  }
+
+  delay(20000); // 20s delay for ThingSpeak rate limit
 }
